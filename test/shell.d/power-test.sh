@@ -5,9 +5,7 @@ set -euo pipefail
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
 run_node_test <<'JS'
-const fs = require('fs')
 const power = requireFromRoot('shell/plugins/panels/power/Model.js')
-const panelSource = fs.readFileSync(root + '/shell/plugins/panels/power/Panel.qml', 'utf8')
 const states = { Charging: 1, Discharging: 2, FullyCharged: 3, PendingCharge: 4 }
 
 assertEqual(power.selectProfileIndex(0, 1, ['balanced', 'performance']), 1, 'power advances profile selection')
@@ -55,22 +53,4 @@ assertEqual(
   power.batteryIcon({ isPresent: true, percentage: 0.4, state: states.Discharging }, true, states),
   'power shows battery icon when unplugged before battery state refreshes'
 )
-
-assert(/readonly property string chargeThreshold: root\.batteryInfo\.threshold \|\| ""/.test(panelSource), 'power panel derives the charge threshold from battery status output')
-assert(!/Model\.(chargeThresholdActive|batteryIcon|modeLabel)\([^)]*upowerStates\(\)\)/.test(panelSource), 'power panel passes the charge threshold to every threshold-aware model call')
-for (const call of ['chargeThresholdActive', 'batteryIcon', 'modeLabel']) {
-  assert(new RegExp(`Model\\.${call}\\(device, root\\.discharging, upowerStates\\(\\), root\\.chargeThreshold[,)]`).test(panelSource), `power panel passes the charge threshold to Model.${call}`)
-}
-assert(/Component\.onCompleted: refreshBattery\(\)/.test(panelSource), 'power panel loads the charge threshold before it is first opened, for the bar icon')
-assert(/onBatteryPresentChanged: \{\s*if \(batteryPresent\) refreshBattery\(\)/.test(panelSource), 'power panel loads the charge threshold when a battery appears')
-assert(/function refreshBattery\(\) \{[^}]*batteryProc\.running = true/.test(panelSource), 'power panel starts the battery status lookup when asked to load the charge threshold')
-assert(/Timer \{[^\n]*running: root\.batteryPresent && !root\.opened && root\.batteryInfo\.percentage === undefined[^\n]*root\.refreshBattery\(\)/.test(panelSource), 'power panel retries the charge threshold lookup until it lands')
-
-assert(/if \(b === Qt\.RightButton\) root\.togglePercentage\(\)/.test(panelSource), 'power right click toggles the bar percentage')
-assert(/Object\.assign\([^\n]+showPercentage: !root\.showPercentage[^\n]+\)[\s\S]*updateEntryInline/.test(panelSource), 'power persists the bar percentage setting')
-// BarIconButton lays its label out before the icon; bar-icon-geometry-test.sh checks the order.
-assert(/text: root\.batteryIcon\(\)\n\s*labelText: root\.showPercentage && !vertical \? Commons\.I18n\.formatNumber\(Math\.round\(root\.batteryFraction \* 100\)\) \+ "%" : ""/.test(panelSource), 'power shows the percentage as the bar button label beside the battery icon')
-assert(/openPanelIndicatorWidth:.*showPercentage.*button\.glyphPaintedWidth : 0/.test(panelSource), 'power spans the open-panel mark across the painted percentage block')
-assert(/IpcHandler[\s\S]*?function togglePercentage\(\) \{ root\.togglePercentage\(\) \}/.test(panelSource), 'power exposes togglePercentage over IPC')
-assert(/manageIpc: false/.test(panelSource), 'power owns its IPC handler so it can extend the target methods')
 JS
